@@ -1,21 +1,29 @@
 const express = require('express');
 const router = express.Router();
-const Billing = require('../models/Billing');
-const AuditLog = require('../models/AuditLog');
+const { db } = require('../firebase');
 const { verifyToken, verifyRole } = require('./middleware');
 
 // GET /api/billing - Get invoices (filtered by patient or user role)
 router.get('/', async (req, res) => {
   try {
     const { patient_id, status } = req.query;
-    let query = {};
-    if (patient_id) query.patient_id = patient_id;
-    if (status) query.payment_status = status;
+    const snap = await db.collection('billing').get();
+    const usersSnap = await db.collection('users').get();
+    const userMap = new Map();
+    usersSnap.forEach((u) => userMap.set(u.id, u.data()));
 
-    const invoices = await Billing.find(query)
-      .populate('patient_id', 'full_name email phone')
-      .populate('doctor_id', 'full_name specialty')
-      .sort({ createdAt: -1 });
+    let invoices = [];
+    snap.forEach((doc) => {
+      const data = doc.data();
+      const id = doc.id;
+      const patient = data.patient_id ? userMap.get(data.patient_id) : null;
+      const doctor = data.doctor_id ? userMap.get(data.doctor_id) : null;
+
+      invoices.push({ id, _id: id, ...data, patient_id: patient, doctor_id: doctor });
+    });
+
+    if (patient_id) invoices = invoices.filter(i => (i.patient_id?.id || i.patient_id?._id || i.patient_id) === patient_id);
+    if (status) invoices = invoices.filter(i => i.payment_status === status);
 
     const totalRevenue = invoices
       .filter(i => i.payment_status === 'Paid')
@@ -49,8 +57,11 @@ router.post('/', verifyToken, verifyRole(['admin', 'doctor']), async (req, res) 
     const subtotal = items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
     const total_amount = Math.max(0, subtotal + Number(tax) - Number(discount));
     const invoice_number = `INV-${Date.now().toString().slice(-6)}`;
+    const invId = 'inv_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
 
-    const invoice = await Billing.create({
+    const invoice = {
+      id: invId,
+      _id: invId,
       invoice_number,
       patient_id,
       doctor_id: doctor_id || null,
@@ -61,21 +72,21 @@ router.post('/', verifyToken, verifyRole(['admin', 'doctor']), async (req, res) 
       total_amount,
       payment_status: 'Pending',
       notes: notes || '',
-    });
+      created_at: new Date().toISOString(),
+    };
 
-    const populated = await Billing.findById(invoice._id)
-      .populate('patient_id', 'full_name email phone')
-      .populate('doctor_id', 'full_name specialty');
+    await db.collection('billing').doc(invId).set(invoice);
 
-    await AuditLog.create({
+    await db.collection('audit_logs').add({
       action: 'INVOICE_CREATED',
       user_name: req.user.full_name || req.user.email,
       user_role: req.user.role,
       details: `Generated invoice ${invoice_number} for total ₹${total_amount}`,
-      category: 'BILLING'
+      category: 'BILLING',
+      timestamp: new Date().toISOString()
     });
 
-    res.status(201).json(populated);
+    res.status(201).json(invoice);
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
@@ -85,24 +96,27 @@ router.post('/', verifyToken, verifyRole(['admin', 'doctor']), async (req, res) 
 router.patch('/:id/pay', verifyToken, async (req, res) => {
   try {
     const { payment_method = 'Card' } = req.body;
-    const invoice = await Billing.findById(req.params.id);
-    if (!invoice) return res.status(404).json({ message: 'Invoice not found' });
+    const invRef = db.collection('billing').doc(req.params.id);
+    const invSnap = await invRef.get();
+    if (!invSnap.exists) return res.status(404).json({ message: 'Invoice not found' });
 
-    invoice.payment_status = 'Paid';
-    invoice.payment_method = payment_method;
-    invoice.paid_at = new Date();
-    await invoice.save();
+    const invData = invSnap.data();
+    const updates = {
+      payment_status: 'Paid',
+      payment_method,
+      paid_at: new Date().toISOString(),
+    };
 
-    const updated = await Billing.findById(invoice._id)
-      .populate('patient_id', 'full_name email phone')
-      .populate('doctor_id', 'full_name specialty');
+    await invRef.update(updates);
+    const updated = { id: req.params.id, _id: req.params.id, ...invData, ...updates };
 
-    await AuditLog.create({
+    await db.collection('audit_logs').add({
       action: 'INVOICE_PAID',
       user_name: req.user.full_name || req.user.email,
       user_role: req.user.role,
-      details: `Paid invoice ${invoice.invoice_number} via ${payment_method} (₹${invoice.total_amount})`,
-      category: 'BILLING'
+      details: `Paid invoice ${invData.invoice_number} via ${payment_method} (₹${invData.total_amount})`,
+      category: 'BILLING',
+      timestamp: new Date().toISOString()
     });
 
     res.json(updated);

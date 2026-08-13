@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const MedicalRecord = require('../models/MedicalRecord');
-const Appointment = require('../models/Appointment');
+const { db } = require('../firebase');
 const { protect } = require('./middleware');
 
 // @route   POST /api/records
@@ -12,21 +11,26 @@ router.post('/', protect, async (req, res) => {
   }
 
   const { patient_id, appointment_id, diagnosis, prescription, notes } = req.body;
-  const doctor_id = req.user._id;
+  const doctor_id = req.user._id || req.user.id;
 
   try {
-    const record = await MedicalRecord.create({
+    const recId = 'rec_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+    const record = {
+      id: recId,
+      _id: recId,
       patient_id,
       doctor_id,
-      appointment_id,
-      diagnosis,
-      prescription,
-      notes,
-    });
+      appointment_id: appointment_id || null,
+      diagnosis: diagnosis || '',
+      prescription: prescription || '',
+      notes: notes || '',
+      created_at: new Date().toISOString(),
+    };
 
-    // If an appointment ID is provided, automatically mark it as completed!
+    await db.collection('records').doc(recId).set(record);
+
     if (appointment_id) {
-      await Appointment.findByIdAndUpdate(appointment_id, { status: 'completed' });
+      await db.collection('appointments').doc(appointment_id).update({ status: 'completed' }).catch(() => {});
     }
 
     res.status(201).json(record);
@@ -40,38 +44,43 @@ router.post('/', protect, async (req, res) => {
 // @desc    Get medical records (Role-based filtering)
 router.get('/', protect, async (req, res) => {
   try {
-    let query = {};
+    const currentUserId = req.user._id || req.user.id;
+    let snap;
     if (req.user.role === 'patient') {
-      query.patient_id = req.user._id;
+      snap = await db.collection('records').where('patient_id', '==', currentUserId).get();
     } else if (req.user.role === 'doctor') {
-      query.doctor_id = req.user._id;
+      snap = await db.collection('records').where('doctor_id', '==', currentUserId).get();
+    } else {
+      snap = await db.collection('records').get();
     }
-    // Admin sees all
 
-    const records = await MedicalRecord.find(query)
-      .populate('patient_id', 'full_name email gender date_of_birth')
-      .populate('doctor_id', 'full_name email specialty')
-      .sort({ created_at: -1 });
+    const usersSnap = await db.collection('users').get();
+    const userMap = new Map();
+    usersSnap.forEach((u) => userMap.set(u.id, u.data()));
 
-    // Transform fields to match the frontend expectations:
-    // patient_id/doctor_id as objects key 'patient'/'doctor'
-    const mapped = records.map(r => {
-      const obj = r.toObject();
-      return {
-        id: obj._id,
-        patient_id: obj.patient_id?._id || obj.patient_id,
-        doctor_id: obj.doctor_id?._id || obj.doctor_id,
-        appointment_id: obj.appointment_id,
-        patient: obj.patient_id,
-        doctor: obj.doctor_id,
-        diagnosis: obj.diagnosis,
-        prescription: obj.prescription,
-        notes: obj.notes,
-        created_at: obj.created_at,
-      };
+    const list = [];
+    snap.forEach((doc) => {
+      const data = doc.data();
+      const id = doc.id;
+      const patient = userMap.get(data.patient_id) || { _id: data.patient_id, full_name: 'Patient' };
+      const doctor = userMap.get(data.doctor_id) || { _id: data.doctor_id, full_name: 'Doctor' };
+
+      list.push({
+        id,
+        _id: id,
+        patient_id: data.patient_id,
+        doctor_id: data.doctor_id,
+        appointment_id: data.appointment_id,
+        patient,
+        doctor,
+        diagnosis: data.diagnosis,
+        prescription: data.prescription,
+        notes: data.notes,
+        created_at: data.created_at,
+      });
     });
 
-    res.json(mapped);
+    res.json(list);
   } catch (err) {
     console.error('Fetch records error:', err);
     res.status(500).json({ message: 'Failed to retrieve medical records' });

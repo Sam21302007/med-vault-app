@@ -1,7 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+const bcrypt = require('bcryptjs');
+const { db } = require('../firebase');
 const { protect } = require('./middleware');
 
 // Helper to sign JWT token
@@ -25,36 +26,37 @@ router.post('/register', async (req, res) => {
     }
 
     const cleanEmail = email.toLowerCase().trim();
-    const userExists = await User.findOne({ email: cleanEmail });
-    if (userExists) {
+    const existingSnap = await db.collection('users').where('email', '==', cleanEmail).get();
+    
+    if (!existingSnap.empty) {
       return res.status(400).json({ message: 'User already exists with this email' });
     }
 
-    const user = await User.create({
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const userId = 'usr_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+
+    const newUser = {
+      id: userId,
+      _id: userId,
       email: cleanEmail,
-      password,
+      password: hashedPassword,
       full_name,
       role,
-      phone,
-      date_of_birth,
-      gender,
-      specialty: role === 'doctor' ? specialty : undefined,
-    });
+      phone: phone || '',
+      date_of_birth: date_of_birth || '',
+      gender: gender || '',
+      specialty: role === 'doctor' ? (specialty || 'General Medicine') : undefined,
+      created_at: new Date().toISOString(),
+    };
+
+    await db.collection('users').doc(userId).set(newUser);
+
+    const safeUser = { ...newUser };
+    delete safeUser.password;
 
     res.status(201).json({
-      token: generateToken(user),
-      user: {
-        id: user._id,
-        _id: user._id,
-        email: user.email,
-        full_name: user.full_name,
-        role: user.role,
-        phone: user.phone,
-        date_of_birth: user.date_of_birth,
-        gender: user.gender,
-        specialty: user.specialty,
-        created_at: user.created_at,
-      },
+      token: generateToken(safeUser),
+      user: safeUser,
     });
   } catch (err) {
     console.error('Registration error:', err);
@@ -73,18 +75,31 @@ router.post('/login', async (req, res) => {
     }
 
     const cleanEmail = email.toLowerCase().trim();
-    let user = await User.findOne({ email: cleanEmail });
+    let usersSnap = await db.collection('users').where('email', '==', cleanEmail).get();
+    let user;
 
-    // Auto-create demo account if missing in Atlas
+    if (!usersSnap.empty) {
+      user = usersSnap.docs[0].data();
+      user._id = user.id || usersSnap.docs[0].id;
+    }
+
+    // Auto-create demo account in Firestore if missing
     if (!user && (cleanEmail === 'patient@demo.com' || cleanEmail === 'doctor@demo.com' || cleanEmail === 'admin@demo.com')) {
       const role = cleanEmail.startsWith('doctor') ? 'doctor' : cleanEmail.startsWith('admin') ? 'admin' : 'patient';
-      user = await User.create({
+      const userId = 'usr_demo_' + role;
+      const hashedPassword = await bcrypt.hash(password || 'demo1234', 10);
+      
+      user = {
+        id: userId,
+        _id: userId,
         email: cleanEmail,
-        password: password || 'demo1234',
+        password: hashedPassword,
         full_name: role === 'doctor' ? 'Dr. Sarah Jenkins' : role === 'admin' ? 'Admin User' : 'Ravi Kumar',
         role,
-        specialty: role === 'doctor' ? 'Cardiology' : undefined
-      });
+        specialty: role === 'doctor' ? 'Cardiology' : undefined,
+        created_at: new Date().toISOString(),
+      };
+      await db.collection('users').doc(userId).set(user);
     }
 
     if (!user) {
@@ -92,41 +107,29 @@ router.post('/login', async (req, res) => {
     }
 
     let isMatch = false;
-    try {
-      if (typeof user.comparePassword === 'function') {
-        isMatch = await user.comparePassword(password);
+    if (user.password) {
+      try {
+        isMatch = await bcrypt.compare(password, user.password);
+      } catch (e) {
+        isMatch = false;
       }
-    } catch (e) {
-      isMatch = false;
     }
 
-    // Demo account override & plain text fallback
-    if (!isMatch) {
-      if (password === 'demo1234' || user.password === password) {
-        isMatch = true;
-        user.password = password;
-        await user.save().catch(() => {});
-      }
+    // Fallback for plain text demo password
+    if (!isMatch && (password === 'demo1234' || user.password === password)) {
+      isMatch = true;
     }
 
     if (!isMatch) {
       return res.status(401).json({ message: 'Invalid email or password' });
     }
 
+    const safeUser = { ...user };
+    delete safeUser.password;
+
     res.json({
-      token: generateToken(user),
-      user: {
-        id: user._id,
-        _id: user._id,
-        email: user.email,
-        full_name: user.full_name,
-        role: user.role,
-        phone: user.phone,
-        date_of_birth: user.date_of_birth,
-        gender: user.gender,
-        specialty: user.specialty,
-        created_at: user.created_at,
-      },
+      token: generateToken(safeUser),
+      user: safeUser,
     });
   } catch (err) {
     console.error('Login error:', err);
@@ -139,8 +142,8 @@ router.post('/login', async (req, res) => {
 router.get('/me', protect, async (req, res) => {
   res.json({
     user: {
-      id: req.user._id,
-      _id: req.user._id,
+      id: req.user._id || req.user.id,
+      _id: req.user._id || req.user.id,
       email: req.user.email,
       full_name: req.user.full_name,
       role: req.user.role,
@@ -154,10 +157,16 @@ router.get('/me', protect, async (req, res) => {
 });
 
 // @route   GET /api/auth/doctors
-// @desc    Get all registered doctors (used by patients to select a doctor)
+// @desc    Get all registered doctors
 router.get('/doctors', protect, async (req, res) => {
   try {
-    const doctors = await User.find({ role: 'doctor' }).select('-password').sort('full_name');
+    const doctorsSnap = await db.collection('users').where('role', '==', 'doctor').get();
+    const doctors = [];
+    doctorsSnap.forEach((doc) => {
+      const data = doc.data();
+      delete data.password;
+      doctors.push({ id: doc.id, _id: doc.id, ...data });
+    });
     res.json(doctors);
   } catch (err) {
     console.error('Fetch doctors error:', err);
@@ -172,7 +181,13 @@ router.get('/users', protect, async (req, res) => {
     return res.status(403).json({ message: 'Access denied: Admin only' });
   }
   try {
-    const users = await User.find({}).select('-password').sort('-created_at');
+    const usersSnap = await db.collection('users').get();
+    const users = [];
+    usersSnap.forEach((doc) => {
+      const data = doc.data();
+      delete data.password;
+      users.push({ id: doc.id, _id: doc.id, ...data });
+    });
     res.json(users);
   } catch (err) {
     console.error('Fetch users error:', err);

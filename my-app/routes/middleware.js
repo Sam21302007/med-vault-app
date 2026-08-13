@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+const { db } = require('../firebase');
 
 const protect = async (req, res, next) => {
   let token;
@@ -9,11 +9,18 @@ const protect = async (req, res, next) => {
       token = req.headers.authorization.split(' ')[1];
       const decoded = jwt.verify(token, process.env.JWT_SECRET || 'medcare_secret_key_for_jsonwebtoken');
       
-      // Get user from database with fallback to decoded payload
+      // Get user from Firestore with fallback to decoded payload
       try {
-        req.user = await User.findById(decoded.id).select('-password');
+        if (decoded.id) {
+          const userDoc = await db.collection('users').doc(decoded.id).get();
+          if (userDoc.exists) {
+            const userData = userDoc.data();
+            delete userData.password;
+            req.user = { _id: userDoc.id, id: userDoc.id, ...userData };
+          }
+        }
       } catch (dbErr) {
-        console.warn('DB User lookup warning in protect middleware:', dbErr.message);
+        console.warn('Firestore user lookup warning in protect middleware:', dbErr.message);
       }
 
       if (!req.user && decoded.id) {
