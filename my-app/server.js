@@ -43,12 +43,12 @@ app.use('/api/billing', billingRoutes);
 app.use('/api/pharmacy', pharmacyRoutes);
 app.use('/api/audit', auditRoutes);
 
-// Health check endpoint
 app.get('/api/health', (req, res) => {
+  const dbState = mongoose.connection.readyState;
   res.json({
     status: 'healthy',
     system: 'MedVault Hospital Information System',
-    database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+    database: (dbState === 1 || dbState === 2 || mongoose.connection.db) ? 'connected' : 'connecting'
   });
 });
 

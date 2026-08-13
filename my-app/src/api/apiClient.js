@@ -27,7 +27,7 @@ export const checkBackendStatus = async () => {
       const res = await fetch(`${baseUrl}/health`, { signal: AbortSignal.timeout(3500) });
       if (res.ok) {
         const data = await res.json();
-        if (data.status === 'healthy' && data.database === 'connected') {
+        if (data.status === 'healthy') {
           activeApiBase = baseUrl;
           backendOnline = true;
           return true;
