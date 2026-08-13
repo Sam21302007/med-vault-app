@@ -1,13 +1,57 @@
 {
-  "name": "med-vault-root",
+  "name": "my-app",
   "version": "0.1.0",
   "private": true,
+  "proxy": "http://localhost:5001",
   "dependencies": {
-    "react-scripts": "5.0.1"
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^13.5.0",
+    "bcryptjs": "^3.0.3",
+    "concurrently": "^10.0.4",
+    "cors": "^2.8.6",
+    "date-fns": "^4.4.0",
+    "detect-port": "^2.1.0",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "firebase": "^12.17.1",
+    "firebase-admin": "^14.2.0",
+    "jsonwebtoken": "^9.0.3",
+    "lucide-react": "^1.29.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-hot-toast": "^2.6.0",
+    "react-router-dom": "^7.18.2",
+    "react-scripts": "5.0.1",
+    "recharts": "^3.10.1",
+    "web-vitals": "^2.1.4"
   },
   "scripts": {
-    "postinstall": "cd my-app && npm install --legacy-peer-deps",
-    "build": "cd my-app && npm run build",
-    "start": "cd my-app && npm start"
+    "start": "concurrently \"npm run server\" \"npm run client\"",
+    "client": "npx cross-env PORT=8080 react-scripts start",
+    "server": "node server.js",
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
   }
 }
