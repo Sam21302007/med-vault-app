@@ -17,13 +17,18 @@ router.post('/register', async (req, res) => {
   const { email, password, full_name, role, phone, date_of_birth, gender, specialty } = req.body;
 
   try {
-    const userExists = await User.findOne({ email });
+    if (!email || !password || !full_name || !role) {
+      return res.status(400).json({ message: 'Please provide all required registration fields.' });
+    }
+
+    const cleanEmail = email.toLowerCase().trim();
+    const userExists = await User.findOne({ email: cleanEmail });
     if (userExists) {
       return res.status(400).json({ message: 'User already exists with this email' });
     }
 
     const user = await User.create({
-      email,
+      email: cleanEmail,
       password,
       full_name,
       role,
@@ -37,6 +42,7 @@ router.post('/register', async (req, res) => {
       token: generateToken(user._id),
       user: {
         id: user._id,
+        _id: user._id,
         email: user.email,
         full_name: user.full_name,
         role: user.role,
@@ -59,12 +65,32 @@ router.post('/login', async (req, res) => {
   const { email, password } = req.body;
 
   try {
-    const user = await User.findOne({ email });
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email and password are required' });
+    }
+
+    const cleanEmail = email.toLowerCase().trim();
+    const user = await User.findOne({ email: cleanEmail });
     if (!user) {
       return res.status(401).json({ message: 'Invalid email or password' });
     }
 
-    const isMatch = await user.comparePassword(password);
+    let isMatch = false;
+    try {
+      if (typeof user.comparePassword === 'function') {
+        isMatch = await user.comparePassword(password);
+      }
+    } catch (e) {
+      isMatch = false;
+    }
+
+    // Fallback: Check if password stored in DB was plain text
+    if (!isMatch && user.password === password) {
+      isMatch = true;
+      user.password = password; // Save will trigger pre-save bcrypt hash
+      await user.save();
+    }
+
     if (!isMatch) {
       return res.status(401).json({ message: 'Invalid email or password' });
     }
@@ -73,6 +99,7 @@ router.post('/login', async (req, res) => {
       token: generateToken(user._id),
       user: {
         id: user._id,
+        _id: user._id,
         email: user.email,
         full_name: user.full_name,
         role: user.role,
@@ -85,7 +112,7 @@ router.post('/login', async (req, res) => {
     });
   } catch (err) {
     console.error('Login error:', err);
-    res.status(500).json({ message: 'Server error during login' });
+    res.status(500).json({ message: err.message || 'Server error during login' });
   }
 });
 
@@ -95,6 +122,7 @@ router.get('/me', protect, async (req, res) => {
   res.json({
     user: {
       id: req.user._id,
+      _id: req.user._id,
       email: req.user.email,
       full_name: req.user.full_name,
       role: req.user.role,
