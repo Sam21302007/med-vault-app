@@ -29,7 +29,7 @@
   },
   "scripts": {
     "start": "concurrently \"npm run server\" \"npm run client\"",
-    "client": "npx cross-env PORT=3001 react-scripts start",
+    "client": "npx cross-env PORT=3000 react-scripts start",
     "server": "node server.js",
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "build": "react-scripts build",
