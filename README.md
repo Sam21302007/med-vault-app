@@ -1,26 +1,82 @@
-# MedVault Hospital Management System
+# 🏥 MedVault — Hospital & Patient Management System
 
-A comprehensive hospital information management platform built with React, Node.js, Express, and MongoDB.
+A full-stack Healthcare & Hospital Management Web Application built with **React**, **Express.js**, and **Firebase Firestore**.
 
-## Features
-- **Dashboard & Patient Records**: View and manage patient admissions and medical history.
-- **Beds Management**: Real-time bed occupancy tracking across wards (ICU, General, Emergency, etc.).
-- **Billing & Invoicing**: Automated invoice calculation, payments, and receipt generation.
-- **Pharmacy & Inventory**: Medicine stock management, prescription processing, and reorder alerts.
-- **Audit Logging**: Comprehensive system action auditing for compliance and security.
+---
 
-## Getting Started
+## 📁 Repository Structure
 
-### Available Scripts
+```
+.
+├── frontend/                     # React Single Page Application (SPA)
+│   ├── public/                   # Static public assets (icons, index.html)
+│   ├── src/                      # React source code (pages, components, context, styles, api)
+│   └── package.json              # React UI dependencies
+│
+├── backend/                      # Node.js / Express REST API Server
+│   ├── api/                      # Serverless route handler (Vercel adapter)
+│   ├── routes/                   # REST API routes (auth, appointments, records, beds, etc.)
+│   ├── server.js                 # Express server entry point & Firestore seeding logic
+│   ├── firebase.js               # Firebase Admin SDK & In-Memory zero-crash fallback
+│   └── package.json              # Backend server dependencies
+│
+├── package.json                  # Root orchestration package.json
+├── vercel.json                   # Deployment routing configuration
+└── README.md                     # Project documentation
+```
 
-In the project directory, you can run:
+---
 
-#### `npm start`
+## 🚀 Quick Start (Local Development)
 
-Runs the app in development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+### 1. Install Dependencies
+Run the following at the root directory to install dependencies for root, backend, and frontend:
+```bash
+npm install
+```
 
-#### `npm run build`
+### 2. Start Both Frontend & Backend
+Run a single command from the root directory to start Express (port `5001`) and React (port `8080`) concurrently:
+```bash
+npm start
+```
 
-Builds the app for production to the `build` folder.
+* **Frontend**: [http://localhost:8080](http://localhost:8080)
+* **Backend API**: [http://localhost:5001/api](http://localhost:5001/api)
+* **Health Check**: [http://localhost:5001/api/health](http://localhost:5001/api/health)
 
+---
+
+## 🔐 Credentials & Demo Logins
+
+Password for all pre-seeded accounts: **`demo1234`**
+
+| Role | Email | Name / Specialty |
+|---|---|---|
+| **Patient** | `patient@demo.com` | Ravi Kumar |
+| **Patient** | `ananya.sharma@demo.com` | Ananya Sharma |
+| **Doctor** | `doctor@demo.com` | Dr. Sarah Jenkins (Cardiology) |
+| **Doctor** | `dr.rajesh@demo.com` | Dr. Rajesh Gupta (Dermatology) |
+| **Admin** | `admin@demo.com` | System Admin |
+
+---
+
+## 🌐 Production Deployment Guide
+
+### Recommended Strategy: Render (Backend) + Vercel (Frontend)
+
+#### Step 1: Deploy Backend to Render.com
+1. Create a **Web Service** on [Render.com](https://render.com) connected to your GitHub repository.
+2. Set **Root Directory**: `backend`
+3. Set **Build Command**: `npm install`
+4. Set **Start Command**: `node server.js`
+5. Add Environment Variable:
+   - `FIREBASE_SERVICE_ACCOUNT` = *(Contents of your Firebase service account JSON)*
+
+#### Step 2: Deploy Frontend to Vercel
+1. Connect your repository to **Vercel**.
+2. Set **Root Directory**: `frontend`
+3. Set **Framework Preset**: `Create React App`
+4. Add Environment Variable:
+   - `REACT_APP_API_URL` = `https://<your-render-api-url>.onrender.com/api`
+5. Click **Deploy**.
