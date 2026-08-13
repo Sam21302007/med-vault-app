@@ -5,8 +5,11 @@ const User = require('../models/User');
 const { protect } = require('./middleware');
 
 // Helper to sign JWT token
-const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET || 'medcare_secret_key_for_jsonwebtoken', {
+const generateToken = (user) => {
+  const payload = typeof user === 'object' 
+    ? { id: user._id || user.id, role: user.role, email: user.email, full_name: user.full_name }
+    : { id: user };
+  return jwt.sign(payload, process.env.JWT_SECRET || 'medcare_secret_key_for_jsonwebtoken', {
     expiresIn: '30d',
   });
 };

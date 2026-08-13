@@ -376,12 +376,38 @@ mongoose.connection.on('disconnected', () => {
 
 // Database Connection & Standalone Server Startup
 const connectDbAndStart = async () => {
+  let connected = false;
+
+  // 1. Try Primary MongoDB Atlas Connection
   try {
-    await mongoose.connect(MONGODB_URI);
-    console.log(`Connected to MongoDB ${MONGODB_URI.includes('localhost') ? 'Locally' : 'Atlas'} (database: medvault_db)`);
-    await seedDatabase();
+    console.log('🔄 Attempting MongoDB Atlas connection...');
+    await mongoose.connect(MONGODB_URI, {
+      serverSelectionTimeoutMS: 5000,
+    });
+    console.log('✅ Connected to MongoDB Atlas (database: medvault_db)');
+    connected = true;
   } catch (err) {
-    console.error('❌ Initial MongoDB connection failed:', err.message);
+    console.warn('⚠️ Atlas connection failed:', err.message);
+  }
+
+  // 2. Try Local MongoDB Fallback if Atlas is unreachable
+  if (!connected) {
+    try {
+      console.log('🔄 Attempting Local MongoDB fallback (mongodb://127.0.0.1:27017/medvault_db)...');
+      await mongoose.connect('mongodb://127.0.0.1:27017/medvault_db', {
+        serverSelectionTimeoutMS: 3000,
+      });
+      console.log('✅ Connected to Local MongoDB');
+      connected = true;
+    } catch (err) {
+      console.warn('⚠️ Local MongoDB connection failed:', err.message);
+    }
+  }
+
+  if (connected) {
+    await seedDatabase();
+  } else {
+    console.warn('⚠️ Server running with active local fallback handlers.');
   }
 
   let chosenPort = Number(PORT);
