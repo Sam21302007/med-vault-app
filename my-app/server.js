@@ -2,6 +2,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const detectPort = require('detect-port');
+const { format } = require('date-fns');
 require('dotenv').config();
 
 const authRoutes = require('./routes/auth');
@@ -14,6 +15,7 @@ const pharmacyRoutes = require('./routes/pharmacy');
 const auditRoutes = require('./routes/audit');
 
 const User = require('./models/User');
+const Appointment = require('./models/Appointment');
 const Availability = require('./models/Availability');
 const MedicalRecord = require('./models/MedicalRecord');
 const Bed = require('./models/Bed');
@@ -116,8 +118,6 @@ const seedDatabase = async () => {
     const docRajesh = await ensureDoctor('rajesh@demo.com', 'Rajesh Verma', 'Ophthalmologist', '+91 98765 43215', 'male');
     const docMeera = await ensureDoctor('meera@demo.com', 'Meera Nambiar', 'ENT Specialist', '+91 98765 43216', 'female');
     const docKaran = await ensureDoctor('karan@demo.com', 'Karan Kapoor', 'Pulmonologist', '+91 98765 43217', 'male');
-    const docNisha = await ensureDoctor('nisha@demo.com', 'Nisha Gupta', 'Gynecologist', '+91 98765 43218', 'female');
-    const docAmit = await ensureDoctor('amit@demo.com', 'Amit Trivedi', 'Gastroenterologist', '+91 98765 43219', 'male');
 
     let admin = await User.findOne({ email: 'admin@demo.com' });
     if (!admin) {
@@ -128,6 +128,23 @@ const seedDatabase = async () => {
         role: 'admin',
       });
       created++;
+    }
+
+    // Seed Appointments
+    const apptCount = await Appointment.countDocuments();
+    if (apptCount === 0) {
+      const todayStr = format(new Date(), 'yyyy-MM-dd');
+      await Appointment.create([
+        { patient_id: pat1._id, doctor_id: docPriya._id, appointment_date: todayStr, time_slot: '09:30', status: 'confirmed', priority: 'urgent', reason: 'Hypertension follow-up & ECG', notes: 'Patient reports high morning blood pressure' },
+        { patient_id: pat2._id, doctor_id: docAnanya._id, appointment_date: todayStr, time_slot: '11:00', status: 'confirmed', priority: 'normal', reason: 'Skin allergy rash evaluation', notes: 'Pruritic rash on both arms' },
+        { patient_id: pat3._id, doctor_id: docAravind._id, appointment_date: todayStr, time_slot: '14:30', status: 'pending', priority: 'emergency', reason: 'Severe acute migraine attack', notes: 'Photophobia and nausea present' },
+        { patient_id: pat4._id, doctor_id: docSunita._id, appointment_date: todayStr, time_slot: '16:00', status: 'confirmed', priority: 'normal', reason: 'Bilateral knee joint pain checkup', notes: 'Knee stiffness upon climbing stairs' },
+        { patient_id: pat5._id, doctor_id: docMeera._id, appointment_date: todayStr, time_slot: '10:15', status: 'completed', priority: 'normal', reason: 'Sinus pressure & nasal drip', notes: 'Prescribed Amoxicillin-Clavulanate' },
+        { patient_id: pat6._id, doctor_id: docKaran._id, appointment_date: todayStr, time_slot: '12:00', status: 'confirmed', priority: 'urgent', reason: 'Asthma exacerbation check', notes: 'Wheezing on exertion' },
+        { patient_id: pat7._id, doctor_id: docVikram._id, appointment_date: todayStr, time_slot: '15:00', status: 'pending', priority: 'normal', reason: 'Routine pediatric checkup', notes: 'Annual growth assessment' },
+        { patient_id: pat8._id, doctor_id: docRajesh._id, appointment_date: todayStr, time_slot: '16:45', status: 'confirmed', priority: 'normal', reason: 'Vision test & eyeglass renewal', notes: 'Complains of mild eyestrain' },
+      ]);
+      console.log('✅ Auto-seeded 8 appointments');
     }
 
     // Seed Medical Records
@@ -327,7 +344,7 @@ const seedDatabase = async () => {
     if (auditCount === 0) {
       await AuditLog.create([
         { action: 'SYSTEM_BOOT', user_name: 'MedVault Engine', user_role: 'system', details: 'Hospital Database Management System initialized', category: 'SYSTEM' },
-        { action: 'DATABASE_SEEDED', user_name: 'AutoSeeder', user_role: 'system', details: 'Populated demo records for patients, doctors, beds, pharmacy, and billing', category: 'SYSTEM' },
+        { action: 'DATABASE_SEEDED', user_name: 'AutoSeeder', user_role: 'system', details: 'Populated demo records for patients, doctors, appointments, beds, pharmacy, and billing', category: 'SYSTEM' },
         { action: 'BED_ASSIGNED', user_name: 'Admin User', user_role: 'admin', details: 'Assigned Bed ICU-101 to Patient Ravi Kumar', category: 'BED' },
         { action: 'INVOICE_GENERATED', user_name: 'Admin User', user_role: 'admin', details: 'Generated Invoice INV-100201 for ₹8000', category: 'BILLING' },
         { action: 'STOCK_RESTOCKED', user_name: 'Admin User', user_role: 'admin', details: 'Restocked Paracetamol 650mg (+200 units)', category: 'PHARMACY' },
