@@ -62,9 +62,11 @@ const seedDatabase = async () => {
           phone: phone || '+91 98765 43210',
           date_of_birth: date_of_birth || '1990-05-15',
           gender: gender || 'Male',
-          specialty: role === 'doctor' ? (specialty || 'Cardiology') : undefined,
           created_at: new Date().toISOString(),
         };
+        if (role === 'doctor') {
+          user.specialty = specialty || 'Cardiology';
+        }
         await db.collection('users').doc(id).set(user);
         return user;
       } else {
@@ -121,11 +123,23 @@ const seedDatabase = async () => {
       }
     }
 
-    console.log('✅ Firebase Firestore Database Seeding Complete!');
-    console.log('   Demo Credentials (Password: demo1234):');
-    console.log('   - patient@demo.com (Patient)');
-    console.log('   - doctor@demo.com  (Doctor - Cardiology)');
-    console.log('   - admin@demo.com   (Admin / Hospital Director)');
+    console.log('✅ Live Firebase Firestore Seeding Completed Successfully!');
+    console.log('   Available Logins (Password: demo1234):');
+    console.log('   --- PATIENTS ---');
+    console.log('   - patient@demo.com (Ravi Kumar)');
+    console.log('   - ananya.sharma@demo.com (Ananya Sharma)');
+    console.log('   - vikram.singh@demo.com (Vikram Singh)');
+    console.log('   - priya.patel@demo.com (Priya Patel)');
+    console.log('   - rahul.verma@demo.com (Rahul Verma)');
+    console.log('   - sneha.reddy@demo.com (Sneha Reddy)');
+    console.log('   --- DOCTORS ---');
+    console.log('   - doctor@demo.com  (Dr. Sarah Jenkins - Cardiology)');
+    console.log('   - dr.rajesh@demo.com (Dr. Rajesh Gupta - Dermatology)');
+    console.log('   - dr.anita@demo.com (Dr. Anita Roy - Neurology)');
+    console.log('   - dr.sunita@demo.com (Dr. Sunita Kapoor - Orthopedics)');
+    console.log('   - dr.karan@demo.com (Dr. Karan Mehra - Pulmonology)');
+    console.log('   --- ADMIN ---');
+    console.log('   - admin@demo.com   (Admin User)');
   } catch (err) {
     console.error('❌ Database seeding error:', err.message);
   }

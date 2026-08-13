@@ -1,4 +1,7 @@
-const admin = require('firebase-admin');
+const { initializeApp, cert, getApps } = require('firebase-admin/app');
+const { getFirestore } = require('firebase-admin/firestore');
+const fs = require('fs');
+const path = require('path');
 
 // In-Memory Firestore Collection Mock Class for zero-crash fallback
 class InMemoryCollection {
@@ -112,19 +115,43 @@ let db;
 let isRealFirebase = false;
 
 try {
-  if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
-    if (!admin.apps.length) {
-      admin.initializeApp({
-        credential: admin.credential.cert({
-          projectId: process.env.FIREBASE_PROJECT_ID,
-          clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-          privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-        }),
+  let serviceAccount = null;
+
+  // Search for service account JSON file in workspace root
+  const rootDir = path.join(__dirname, '..');
+  if (fs.existsSync(rootDir)) {
+    const files = fs.readdirSync(rootDir);
+    const jsonFile = files.find(f => f.endsWith('.json') && f.includes('firebase-adminsdk'));
+    if (jsonFile) {
+      const fullPath = path.join(rootDir, jsonFile);
+      serviceAccount = JSON.parse(fs.readFileSync(fullPath, 'utf8'));
+    }
+  }
+
+  // Fallback to env variables if json file not found
+  if (!serviceAccount && process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
+    serviceAccount = {
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+    };
+  }
+
+  if (serviceAccount) {
+    const apps = getApps();
+    if (!apps.length) {
+      initializeApp({
+        credential: cert(serviceAccount),
       });
     }
-    db = admin.firestore();
+    db = getFirestore();
+    try {
+      db.settings({ ignoreUndefinedProperties: true });
+    } catch (e) {
+      // Ignore if settings already initialized
+    }
     isRealFirebase = true;
-    console.log('✅ Connected to live Firebase Admin SDK & Firestore');
+    console.log(`🔥 Connected to Live Firebase Firestore (Project: ${serviceAccount.project_id || serviceAccount.projectId})`);
   } else {
     db = new InMemoryDb();
     console.log('🟢 Running in-memory Firestore Fallback simulator (Ready for Firebase credentials)');
@@ -134,4 +161,4 @@ try {
   db = new InMemoryDb();
 }
 
-module.exports = { db, admin, isRealFirebase };
+module.exports = { db, isRealFirebase };
