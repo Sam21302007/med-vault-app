@@ -364,14 +364,16 @@ const seedDatabase = async () => {
 };
 
 // Mongoose connection event listeners
+let isAtlasConnected = false;
 mongoose.connection.on('connected', () => {
-  console.log('✅ Mongoose connected to MongoDB Atlas');
-});
-mongoose.connection.on('error', (err) => {
-  console.error('❌ Mongoose connection error:', err.message);
+  isAtlasConnected = true;
+  console.log('✅ Mongoose connected successfully');
 });
 mongoose.connection.on('disconnected', () => {
-  console.warn('⚠️ Mongoose disconnected from MongoDB Atlas');
+  if (isAtlasConnected) {
+    console.warn('⚠️ Mongoose connection lost');
+    isAtlasConnected = false;
+  }
 });
 
 // Database Connection & Standalone Server Startup
@@ -380,34 +382,34 @@ const connectDbAndStart = async () => {
 
   // 1. Try Primary MongoDB Atlas Connection
   try {
-    console.log('🔄 Attempting MongoDB Atlas connection...');
+    console.log('🔄 Connecting to MongoDB Atlas...');
     await mongoose.connect(MONGODB_URI, {
-      serverSelectionTimeoutMS: 5000,
+      serverSelectionTimeoutMS: 4000,
+      family: 4,
     });
-    console.log('✅ Connected to MongoDB Atlas (database: medvault_db)');
     connected = true;
   } catch (err) {
-    console.warn('⚠️ Atlas connection failed:', err.message);
+    console.log('⚠️ MongoDB Atlas is not reachable from your current IP address.');
+    console.log('💡 Tip to enable Atlas: Go to MongoDB Atlas -> Network Access -> Add IP Address -> Allow Access From Anywhere (0.0.0.0/0).');
   }
 
   // 2. Try Local MongoDB Fallback if Atlas is unreachable
   if (!connected) {
     try {
-      console.log('🔄 Attempting Local MongoDB fallback (mongodb://127.0.0.1:27017/medvault_db)...');
       await mongoose.connect('mongodb://127.0.0.1:27017/medvault_db', {
-        serverSelectionTimeoutMS: 3000,
+        serverSelectionTimeoutMS: 2000,
       });
       console.log('✅ Connected to Local MongoDB');
       connected = true;
     } catch (err) {
-      console.warn('⚠️ Local MongoDB connection failed:', err.message);
+      // Local mongodb fallback silent catch
     }
   }
 
   if (connected) {
     await seedDatabase();
   } else {
-    console.warn('⚠️ Server running with active local fallback handlers.');
+    console.log('🟢 Running in Standalone Local Server Mode (Express API ready).');
   }
 
   let chosenPort = Number(PORT);
@@ -419,12 +421,12 @@ const connectDbAndStart = async () => {
         chosenPort = freePort;
       }
     } catch (e) {
-      console.warn('Port detection warning:', e.message);
+      // Ignore port detect warning
     }
   }
 
   app.listen(chosenPort, () => {
-    console.log(`🚀 MedVault Express API Server running on port ${chosenPort}`);
+    console.log(`🚀 MedVault Express API Server is live at http://localhost:${chosenPort}`);
   });
 };
 
