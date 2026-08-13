@@ -117,27 +117,57 @@ let isRealFirebase = false;
 try {
   let serviceAccount = null;
 
-  // Search for service account JSON file in workspace root
-  const rootDir = __dirname;
-  if (fs.existsSync(rootDir)) {
-    const files = fs.readdirSync(rootDir);
-    const jsonFile = files.find(f => f.endsWith('.json') && f.includes('firebase-adminsdk'));
-    if (jsonFile) {
-      const fullPath = path.join(rootDir, jsonFile);
-      serviceAccount = JSON.parse(fs.readFileSync(fullPath, 'utf8'));
+  // 1. Search local workspace directories for service account JSON file (for local dev)
+  const searchDirs = [__dirname, process.cwd(), path.join(process.cwd(), 'api'), path.join(__dirname, '..')];
+  for (const dir of searchDirs) {
+    if (fs.existsSync(dir)) {
+      try {
+        const files = fs.readdirSync(dir);
+        const jsonFile = files.find(f => f.endsWith('.json') && (f.includes('firebase-adminsdk') || f.includes('adminsdk')));
+        if (jsonFile) {
+          const fullPath = path.join(dir, jsonFile);
+          serviceAccount = JSON.parse(fs.readFileSync(fullPath, 'utf8'));
+          break;
+        }
+      } catch (dirErr) {
+        // Ignore read errors
+      }
     }
   }
 
-  // Fallback to env variables if json file not found
-  if (!serviceAccount && process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
+  // 3. Fallback to FIREBASE_SERVICE_ACCOUNT environment variable (JSON string)
+  if (!serviceAccount && process.env.FIREBASE_SERVICE_ACCOUNT) {
+    try {
+      serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    } catch (e) {
+      console.warn('Failed to parse FIREBASE_SERVICE_ACCOUNT env var JSON');
+    }
+  }
+
+  // 4. Fallback to FIREBASE_SERVICE_ACCOUNT_BASE64 environment variable
+  if (!serviceAccount && process.env.FIREBASE_SERVICE_ACCOUNT_BASE64) {
+    try {
+      const decoded = Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_BASE64, 'base64').toString('utf8');
+      serviceAccount = JSON.parse(decoded);
+    } catch (e) {
+      console.warn('Failed to parse FIREBASE_SERVICE_ACCOUNT_BASE64 env var');
+    }
+  }
+
+  // 5. Fallback to individual env variables if valid (not default placeholder)
+  if (!serviceAccount &&
+      process.env.FIREBASE_PROJECT_ID &&
+      process.env.FIREBASE_PROJECT_ID !== 'your-project-id' &&
+      process.env.FIREBASE_CLIENT_EMAIL &&
+      process.env.FIREBASE_PRIVATE_KEY) {
     serviceAccount = {
       projectId: process.env.FIREBASE_PROJECT_ID,
       clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+      privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n').replace(/^"|"$/g, ''),
     };
   }
 
-  if (serviceAccount) {
+  if (serviceAccount && (serviceAccount.project_id || serviceAccount.projectId)) {
     const apps = getApps();
     if (!apps.length) {
       initializeApp({
@@ -162,3 +192,4 @@ try {
 }
 
 module.exports = { db, isRealFirebase };
+

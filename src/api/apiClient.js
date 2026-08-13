@@ -22,12 +22,13 @@ export const checkBackendStatus = async () => {
     if (!candidateBases.includes(url)) candidateBases.push(url);
   });
 
+  // Check /api/health endpoint
   for (const baseUrl of candidateBases) {
     try {
       const res = await fetch(`${baseUrl}/health`, { signal: AbortSignal.timeout(3500) });
       if (res.ok) {
         const data = await res.json();
-        if (data.status === 'healthy') {
+        if (data.status === 'ok' || data.status === 'healthy' || data.healthy === true) {
           activeApiBase = baseUrl;
           backendOnline = true;
           return true;
@@ -35,6 +36,23 @@ export const checkBackendStatus = async () => {
       }
     } catch (err) {
       // Continue checking candidate URLs
+    }
+  }
+
+  // Secondary check on root /api base
+  for (const baseUrl of candidateBases) {
+    try {
+      const res = await fetch(baseUrl, { signal: AbortSignal.timeout(3500) });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.message || data.status === 'ok' || data.healthy === true) {
+          activeApiBase = baseUrl;
+          backendOnline = true;
+          return true;
+        }
+      }
+    } catch (err) {
+      // Ignore
     }
   }
 

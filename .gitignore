@@ -20,3 +20,8 @@ yarn-error.log*
 .DS_Store
 .vscode/
 *.pem
+
+# Firebase / Service Account Secrets
+*firebase-adminsdk*.json
+*-adminsdk-*.json
+serviceAccountKey.json

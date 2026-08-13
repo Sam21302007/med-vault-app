@@ -34,13 +34,24 @@ app.use('/api/billing', billingRoutes);
 app.use('/api/pharmacy', pharmacyRoutes);
 app.use('/api/audit', auditRoutes);
 
-// Base route & Health check
-app.get('/api', (req, res) => {
-  res.json({ message: 'MedVault Express API is active (Firebase Firestore backend)' });
+// Base route & Health check (Supports Vercel serverless and standalone server)
+const { isRealFirebase } = require('./firebase');
+
+app.get(['/api/health', '/health'], (req, res) => {
+  res.json({
+    status: 'ok',
+    healthy: true,
+    database: isRealFirebase ? 'Firebase Firestore' : 'In-Memory Fallback',
+    timestamp: new Date().toISOString()
+  });
 });
 
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', database: 'Firebase Firestore' });
+app.get(['/api', '/'], (req, res) => {
+  res.json({
+    message: 'MedVault Express API is active (Firebase Firestore backend)',
+    status: 'ok',
+    healthy: true
+  });
 });
 
 // Seed Firebase Firestore Database with Demo Data
@@ -145,6 +156,15 @@ const seedDatabase = async () => {
   }
 };
 
+// Global Error Handler Middleware
+app.use((err, req, res, next) => {
+  console.error('❌ Express Global Error:', err);
+  res.status(err.status || 500).json({
+    message: err.message || 'Internal Server Error',
+    error: process.env.NODE_ENV === 'development' ? err : undefined,
+  });
+});
+
 const startServer = async () => {
   await seedDatabase();
 
@@ -167,6 +187,9 @@ const startServer = async () => {
 
 if (require.main === module) {
   startServer();
+} else {
+  // Trigger background seed check when imported in serverless function
+  seedDatabase().catch((err) => console.warn('Background seed notice:', err.message));
 }
 
 module.exports = app;
