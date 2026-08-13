@@ -8,6 +8,11 @@ export const getApiBase = () => activeApiBase;
 export const checkBackendStatus = async () => {
   const candidateBases = ['/api'];
 
+  if (process.env.REACT_APP_API_URL) {
+    const customUrl = process.env.REACT_APP_API_URL.replace(/\/+$/, '');
+    if (!candidateBases.includes(customUrl)) candidateBases.unshift(customUrl);
+  }
+
   if (typeof window !== 'undefined') {
     const originApi = `${window.location.origin}/api`;
     if (!candidateBases.includes(originApi)) candidateBases.push(originApi);

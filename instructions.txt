@@ -1,37 +1,23 @@
-✅ Short answer
-Yes — this project is a full-stack app, not just React.
+Here are the commands to start your local servers:
 
-I checked package.json and server.js:
+Option 1: Start Both Services Together (Recommended)
+Run this single command from your root project folder (d:\SVAC REACT):
 
-package.json defines:
+bash
+npm start
+This starts:
 
-npm run server → runs the Express backend
-npm run client → runs the React frontend
-npm start → starts both together with concurrently
-server.js creates an Express app and mounts APIs like:
+🟢 Express Backend: http://localhost:5001
+🔵 React Frontend: http://localhost:8080
 
-/api/auth
-/api/appointments
-/api/records
-etc.
-So the app is intentionally split into:
 
-React frontend
-Express backend API
-Why you are starting two services
-Because the frontend and backend are separate processes:
+Option 2: Start Services in Separate Terminals (For Debugging)
+Terminal 1 — Backend Only:
 
-React dev server runs on port 8080
-Express API runs on port 5001
-package.json has "proxy": "http://localhost:5001" so browser requests are routed to the API
-This is normal for a React + Express project.
+bash
+npm run server
 
-Use one command instead of two
-Run this from the project root:
+Terminal 2 — Frontend Only:
 
-That starts both services in one go.
-
-If you want them separately:
-
-Bottom line
-This is not “just React”; it is React + Express backend. The project is designed to run as two services, but you do not need to start them manually if you use npm start.
+bash
+npm run client
