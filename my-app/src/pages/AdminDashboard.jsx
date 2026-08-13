@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 import { format, subDays } from 'date-fns';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend,
+  PieChart, Pie, Cell,
 } from 'recharts';
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#8b5cf6'];
@@ -29,23 +29,15 @@ const AdminDashboard = () => {
   // Analytics Chart Data
   const [weeklyData, setWeeklyData] = useState([]);
   const [statusData, setStatusData] = useState([]);
-  const [priorityData, setPriorityData] = useState([]);
-  const [doctorStats, setDoctorStats] = useState([]);
-  
+
   // Filters & Modals
-  const [filterStatus, setFilterStatus] = useState('');
-  const [filterPriority, setFilterPriority] = useState('');
   const [wardFilter, setWardFilter] = useState('All');
   const [selectedBed, setSelectedBed] = useState(null);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [showAddMedicineModal, setShowAddMedicineModal] = useState(false);
-  const [showCreateInvoiceModal, setShowCreateInvoiceModal] = useState(false);
 
-  // New Form Inputs
+  // Form Inputs
   const [newMedicine, setNewMedicine] = useState({ name: '', generic_name: '', category: 'Painkillers', stock_quantity: 100, unit_price: 25 });
-  const [newInvoice, setNewInvoice] = useState({ patient_id: '', items: [{ description: 'General Consultation', category: 'Consultation', amount: 800 }] });
-
-  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!profile) return;
@@ -54,7 +46,6 @@ const AdminDashboard = () => {
   }, [profile]);
 
   const fetchAllData = async () => {
-    setLoading(true);
     await Promise.all([
       fetchAppointments(),
       fetchUsers(),
@@ -63,7 +54,6 @@ const AdminDashboard = () => {
       fetchPharmacy(),
       fetchAudit(),
     ]);
-    setLoading(false);
   };
 
   const fetchAppointments = async () => {
@@ -84,19 +74,6 @@ const AdminDashboard = () => {
       const statusMap = {};
       appts.forEach(a => { statusMap[a.status] = (statusMap[a.status] || 0) + 1; });
       setStatusData(Object.entries(statusMap).map(([name, value]) => ({ name, value })));
-
-      const priMap = {};
-      appts.forEach(a => { priMap[a.priority] = (priMap[a.priority] || 0) + 1; });
-      setPriorityData(Object.entries(priMap).map(([name, value]) => ({ name, value })));
-
-      const docMap = {};
-      appts.forEach(a => {
-        const name = a.doctor?.full_name || 'Unknown';
-        if (!docMap[name]) docMap[name] = { name, total: 0, completed: 0, specialty: a.doctor?.specialty };
-        docMap[name].total++;
-        if (a.status === 'completed') docMap[name].completed++;
-      });
-      setDoctorStats(Object.values(docMap).sort((a, b) => b.total - a.total));
 
       const today = format(new Date(), 'yyyy-MM-dd');
       setStats(prev => ({
@@ -371,11 +348,6 @@ const AdminDashboard = () => {
             <div>
               <div className="section-header">
                 <span className="section-title">Hospital Billing & Invoices</span>
-                <div style={{ display: 'flex', gap: 10 }}>
-                  <button className="btn btn-primary btn-sm" onClick={() => setShowCreateInvoiceModal(true)}>
-                    ➕ Generate New Invoice
-                  </button>
-                </div>
               </div>
 
               <div className="table-container">
